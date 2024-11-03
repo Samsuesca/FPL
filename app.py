@@ -43,12 +43,9 @@ df_long = df.melt(id_vars=['TEAM', 'MANAGER'],
                   var_name='Gameweek', 
                   value_name='Points')
 
-# Convertir Gameweek a numérico
-df_long['Gameweek'] = df_long['Gameweek'].str.replace('GW', '').astype(int)
-
 # Agregar puntos perdidos (15 puntos en GW10 para todos)
 df_long['Lost_Points'] = 0
-df_long.loc[df_long['Gameweek'] == 10, 'Lost_Points'] = 15
+df_long.loc[df_long['Gameweek'] == 'GW10', 'Lost_Points'] = 15
 
 # Calcular puntos corregidos
 df_long['Corrected_Points'] = df_long['Points'] - df_long['Lost_Points']
@@ -63,17 +60,14 @@ df_long['Position'] = df_long.groupby('Gameweek')['Total_Points'].rank(method='m
 st.title('Análisis Fantasy Premier League')
 
 # Filtros superiores
-col1, col2 = st.columns(2)
-
+col1, col2 = st.columns([1, 2])
 with col1:
-    gw_start, gw_end = st.select_slider(
-        'Rango de Jornadas',
-        options=list(range(1, df_long['Gameweek'].max() + 1)),
-        value=(1, df_long['Gameweek'].max())
-    )
+    all_gameweeks = sorted(df_long['Gameweek'].unique())
+    gw_start = st.selectbox('Jornada Inicial', all_gameweeks, index=0)
+    gw_end = st.selectbox('Jornada Final', all_gameweeks, index=len(all_gameweeks)-1)
 
 with col2:
-    all_teams = list(df_long['TEAM'].unique())
+    all_teams = sorted(df_long['TEAM'].unique())
     select_all = st.checkbox("Seleccionar todos los equipos", value=True)
     
     if select_all:
@@ -85,19 +79,19 @@ with col2:
             default=[]
         )
 
-# 1. Tabla principal con filtros
+# Filtrar datos
 filtered_df = df_long[
-    (df_long['Gameweek'].between(gw_start, gw_end)) & 
+    (df_long['Gameweek'].isin(all_gameweeks[all_gameweeks.index(gw_start):all_gameweeks.index(gw_end)+1])) & 
     (df_long['TEAM'].isin(selected_teams))
 ].copy()
 
 # Función para estilizar la tabla
 def highlight_wildcards(row):
-    team = row['TEAM']
-    gw = f'GW{row["Gameweek"]}'
-    is_wildcard = (wildcards_df['TEAM'] == team) & (wildcards_df['Gameweek'] == gw)
-    return ['background-color: lightgreen' if is_wildcard.any() else '' for _ in row]
+    is_wildcard = (wildcards_df['TEAM'] == row['TEAM']) & (wildcards_df['Gameweek'] == row['Gameweek'])
+    styles = ['background-color: lightgreen' if is_wildcard.any() else '' for _ in row]
+    return styles
 
+# Mostrar tabla
 show_single_gw = st.checkbox('Mostrar solo la última jornada seleccionada')
 if show_single_gw:
     display_df = filtered_df[filtered_df['Gameweek'] == gw_end]
@@ -107,13 +101,13 @@ else:
     st.header(f'Tabla de la Liga - Jornadas {gw_start} a {gw_end}')
 
 # Ordenar y mostrar la tabla
-display_df = display_df.sort_values(['Gameweek', 'Position'])
 st.dataframe(
-    display_df[['TEAM', 'MANAGER', 'Corrected_Points', 'Total_Points', 'Position']]
+    display_df[['TEAM', 'MANAGER', 'Gameweek', 'Corrected_Points', 'Total_Points', 'Position']]
+    .sort_values(['Gameweek', 'Position'])
     .style.apply(highlight_wildcards, axis=1)
 )
 
-# 2. Evolución de puntos
+# Evolución de puntos
 st.header('Evolución de Puntos')
 col1, col2 = st.columns([4, 1])
 with col1:
@@ -138,7 +132,7 @@ with col2:
         opacity = st.slider(f'{team}', 0.0, 1.0, 1.0, key=f'points_{team}')
         fig_points.update_traces(opacity=opacity, selector=dict(name=team))
 
-# 3. Evolución de posiciones
+# Evolución de posiciones
 st.header('Evolución de Posiciones')
 col1, col2 = st.columns([4, 1])
 with col1:
@@ -164,7 +158,7 @@ with col2:
         opacity = st.slider(f'{team}', 0.0, 1.0, 1.0, key=f'pos_{team}')
         fig_position.update_traces(opacity=opacity, selector=dict(name=team))
 
-# 4. Distribución de puntos por equipo
+# Distribución de puntos por equipo
 st.header('Distribución de Puntos por Equipo')
 fig_box_teams = px.box(
     filtered_df,
@@ -178,7 +172,7 @@ fig_box_teams.update_layout(
 )
 st.plotly_chart(fig_box_teams, use_container_width=True)
 
-# 5. Estadísticas de la liga
+# Estadísticas de la liga
 st.header('Estadísticas de la Liga')
 col1, col2, col3 = st.columns(3)
 
@@ -188,9 +182,9 @@ with col1:
 with col2:
     max_data = filtered_df.loc[filtered_df['Corrected_Points'].idxmax()]
     st.metric("Máxima Puntuación", 
-             f"{max_data['Corrected_Points']:.0f} ({max_data['TEAM']}, GW{max_data['Gameweek']})")
+             f"{max_data['Corrected_Points']:.0f} ({max_data['TEAM']}, {max_data['Gameweek']})")
 
 with col3:
     min_data = filtered_df.loc[filtered_df['Corrected_Points'].idxmin()]
     st.metric("Mínima Puntuación", 
-             f"{min_data['Corrected_Points']:.0f} ({min_data['TEAM']}, GW{min_data['Gameweek']})")
+             f"{min_data['Corrected_Points']:.0f} ({min_data['TEAM']}, {min_data['Gameweek']})")
