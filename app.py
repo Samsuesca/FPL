@@ -3,188 +3,261 @@ import streamlit as st
 import plotly.express as px 
 import plotly.graph_objects as go
 import numpy as np
+import requests
+import time
+from datetime import datetime
 
-# Configuración inicial de la página
-st.set_page_config(page_title="Análisis Fantasy PL", layout="wide")
-
-# Datos
-data = {
-    'TEAM': ['FPLcolombia', 'Ben', 'AtlNacional', 'terror de las enanas', 'SamChelsea', 
-            'Falso 9', 'Aston Birras', 'Arsenal Giraldo', 'Terreneitor', 'team1', 
-            'JD team', 'Batipibe', 'JMfc'],
-    'MANAGER': ['CHRISTIAN POSSO', 'JUAN ESTEBAN RIVERA', 'ARLEN GUARIN', 'ANDRES RINCON',
-               'SAMUEL SUESCA', 'NICOLAS MANCERA', 'DANIEL MARQUEZ', 'SEBASTIAN GIRALDO',
-               'SANTIAGO VELASQUEZ', 'GABRIEL SUAREZ', 'DIEGO MONTOYA', 'BRAYAN PINEDA',
-               'JAIRO MONTOYA'],
-    'GW1': [81, 67, 69, 72, 39, 67, 62, 71, 66, 47, 47, 64, 66],
-    'GW2': [86, 74, 83, 58, 72, 83, 80, 55, 70, 86, 43, 73, 60],
-    'GW3': [84, 78, 95, 67, 41, 71, 76, 75, 91, 54, 55, 64, 56],
-    'GW4': [54, 59, 60, 57, 27, 64, 52, 38, 33, 65, 59, 52, 38],
-    'GW5': [61, 70, 67, 52, 81, 75, 55, 50, 73, 54, 69, 48, 55],
-    'GW6': [47, 30, 32, 85, 68, 25, 31, 44, 54, 65, 47, 41, 64],
-    'GW7': [48, 40, 56, 39, 60, 43, 27, 44, 40, 39, 43, 39, 26],
-    'GW8': [46, 45, 29, 34, 42, 18, 41, 55, 24, 32, 48, 30, 31],
-    'GW9': [52, 62, 53, 60, 85, 54, 73, 57, 46, 40, 54, 60, 69],
-    'GW10': [22, 40, 22, 29, 47, 27, 39, 32, 24, 15, 28, 37, 30]
-}
-
-# Wildcards
-wildcards = {
-    'TEAM': ['Ben', 'terror de las enanas','Arsenal Giraldo','FPLcolombia','JMfc'],
-    'Gameweek': ['GW6', 'GW3','GW9','GW6','GW6']
-}
-wildcards_df = pd.DataFrame(wildcards)
-
-# Crear DataFrame inicial
-df = pd.DataFrame(data)
-
-# Convertir a formato largo
-df_long = df.melt(id_vars=['TEAM', 'MANAGER'], 
-                  var_name='Gameweek', 
-                  value_name='Points')
-
-# Agregar puntos perdidos (15 puntos en GW10 para todos)
-df_long['Lost_Points'] = 0
-df_long.loc[df_long['Gameweek'] == 'GW10', 'Lost_Points'] = 15
-
-# Calcular puntos corregidos
-df_long['Corrected_Points'] = df_long['Points'] - df_long['Lost_Points']
-
-# Calcular puntos totales corregidos
-df_long['Total_Points'] = df_long.groupby('TEAM')['Corrected_Points'].cumsum()
-
-# Calcular posiciones
-df_long['Position'] = df_long.groupby('Gameweek')['Total_Points'].rank(method='min', ascending=False)
-
-# Título principal
-st.title('Análisis Fantasy Premier League')
-
-# Filtros superiores
-col1, col2 = st.columns([1, 2])
-with col1:
-    all_gameweeks = sorted(df_long['Gameweek'].unique())
-    gw_start = st.selectbox('Jornada Inicial', all_gameweeks, index=0)
-    gw_end = st.selectbox('Jornada Final', all_gameweeks, index=len(all_gameweeks)-1)
-
-with col2:
-    all_teams = sorted(df_long['TEAM'].unique())
-    select_all = st.checkbox("Seleccionar todos los equipos", value=True)
+class FPLData:
+    def __init__(self):
+        self.session = requests.session()
+        self.base_url = "https://fantasy.premierleague.com/api/"
+        self.general_data = None
+        
+    def get_general_data(self):
+        """Obtiene datos generales de la FPL"""
+        if not self.general_data:
+            url = f"{self.base_url}bootstrap-static/"
+            r = self.session.get(url)
+            self.general_data = r.json()
+        return self.general_data
     
+    def get_league_standings(self, league_id, page=1):
+        """Obtiene la clasificación de una liga"""
+        url = f"{self.base_url}leagues-classic/{league_id}/standings/?page_standings={page}"
+        r = self.session.get(url)
+        return r.json()
+    
+    def get_manager_history(self, team_id):
+        """Obtiene el historial de un manager"""
+        url = f"{self.base_url}entry/{team_id}/history/"
+        r = self.session.get(url)
+        return r.json()
+    
+    def get_team_picks(self, team_id, gameweek):
+        """Obtiene las selecciones de un equipo para una gameweek"""
+        url = f"{self.base_url}entry/{team_id}/event/{gameweek}/picks/"
+        r = self.session.get(url)
+        return r.json()
+    
+    def get_player_details(self, player_id):
+        """Obtiene detalles de un jugador"""
+        url = f"{self.base_url}element-summary/{player_id}/"
+        r = self.session.get(url)
+        return r.json()
+
+    def process_league_data(self, league_id):
+        """Procesa todos los datos de la liga"""
+        # Obtener datos generales
+        general_data = self.get_general_data()
+        players_df = pd.DataFrame(general_data['elements'])
+        teams_df = pd.DataFrame(general_data['teams'])
+        events_df = pd.DataFrame(general_data['events'])
+        
+        # Obtener datos de la liga
+        league_data = self.get_league_standings(league_id)
+        
+        if not league_data or 'standings' not in league_data:
+            st.error("No se pudieron obtener los datos de la liga")
+            return None
+            
+        # Procesar managers
+        managers_data = []
+        current_event = events_df[events_df['is_current']].iloc[0]['id'] if not events_df[events_df['is_current']].empty else events_df['id'].max()
+        
+        with st.spinner('Cargando datos de los equipos...'):
+            progress_bar = st.progress(0)
+            
+            for i, entry in enumerate(league_data['standings']['results']):
+                team_id = entry['entry']
+                try:
+                    # Obtener historial del equipo
+                    history = self.get_manager_history(team_id)
+                    if history and 'current' in history:
+                        for gw in history['current']:
+                            # Obtener picks para esta gameweek
+                            picks_data = self.get_team_picks(team_id, gw['event'])
+                            if picks_data and 'picks' in picks_data:
+                                for pick in picks_data['picks']:
+                                    player_info = players_df[players_df['id'] == pick['element']].iloc[0]
+                                    team_info = teams_df[teams_df['id'] == player_info['team']].iloc[0]
+                                    
+                                    managers_data.append({
+                                        'manager_id': team_id,
+                                        'manager_name': entry['player_name'],
+                                        'team_name': entry['entry_name'],
+                                        'gameweek': gw['event'],
+                                        'total_points': gw['total_points'],
+                                        'gameweek_points': gw['points'],
+                                        'transfers': gw['event_transfers'],
+                                        'transfer_cost': gw['event_transfers_cost'],
+                                        'player_id': pick['element'],
+                                        'player_name': f"{player_info['first_name']} {player_info['second_name']}",
+                                        'player_team': team_info['name'],
+                                        'position': pick['position'],
+                                        'is_captain': pick['is_captain'],
+                                        'is_vice_captain': pick['is_vice_captain'],
+                                        'multiplier': pick['multiplier']
+                                    })
+                    
+                    time.sleep(0.5)  # Respetar rate limits
+                    progress_bar.progress((i + 1) / len(league_data['standings']['results']))
+                    
+                except Exception as e:
+                    st.warning(f"Error obteniendo datos para el equipo {team_id}: {str(e)}")
+                    continue
+        
+        return pd.DataFrame(managers_data)
+
+# Configuración de la página
+st.set_page_config(page_title="Fantasy Premier League Analytics", layout="wide")
+
+# Inicializar clase de datos
+@st.cache_resource
+def get_fpl_data():
+    return FPLData()
+
+fpl = get_fpl_data()
+
+# Título y descripción
+st.title('🏆 Fantasy Premier League Analytics')
+st.markdown("""
+Este dashboard muestra estadísticas detalladas de tu liga de Fantasy Premier League.
+""")
+
+# Cargar datos
+LEAGUE_ID = "1126029"
+
+@st.cache_data(ttl=3600)  # Cache por 1 hora
+def load_league_data():
+    return fpl.process_league_data(LEAGUE_ID)
+
+# Cargar datos
+df = load_league_data()
+
+if df is not None:
+    # Filtros superiores
+    st.sidebar.header('Filtros')
+    
+    # Filtro de gameweeks
+    all_gameweeks = sorted(df['gameweek'].unique())
+    gw_range = st.sidebar.select_slider(
+        'Rango de Jornadas',
+        options=all_gameweeks,
+        value=(min(all_gameweeks), max(all_gameweeks))
+    )
+    
+    # Filtro de managers
+    all_managers = sorted(df['team_name'].unique())
+    select_all = st.sidebar.checkbox("Seleccionar todos los equipos", value=True)
     if select_all:
-        selected_teams = all_teams
+        selected_managers = all_managers
     else:
-        selected_teams = st.multiselect(
+        selected_managers = st.sidebar.multiselect(
             "Equipos seleccionados",
-            options=all_teams,
+            options=all_managers,
             default=[]
         )
+    
+    # Filtrar datos
+    filtered_df = df[
+        (df['gameweek'].between(gw_range[0], gw_range[1])) & 
+        (df['team_name'].isin(selected_managers))
+    ].copy()
+    
+    # Métricas principales
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Promedio de Puntos", f"{filtered_df['gameweek_points'].mean():.1f}")
+    with col2:
+        highest_score = filtered_df.nlargest(1, 'gameweek_points').iloc[0]
+        st.metric("Máxima Puntuación", f"{highest_score['gameweek_points']} ({highest_score['team_name']}, GW{highest_score['gameweek']})")
+    with col3:
+        most_transfers = filtered_df.nlargest(1, 'transfers').iloc[0]
+        st.metric("Más Transferencias", f"{most_transfers['transfers']} ({most_transfers['team_name']}, GW{most_transfers['gameweek']})")
+    with col4:
+        highest_cost = filtered_df.nlargest(1, 'transfer_cost').iloc[0]
+        st.metric("Mayor Costo", f"{highest_cost['transfer_cost']} ({highest_cost['team_name']}, GW{highest_cost['gameweek']})")
+    
+    # Visualizaciones
+    tab1, tab2, tab3 = st.tabs(["📈 Rendimiento", "👥 Equipos", "🌟 Capitanes"])
+    
+    with tab1:
+        # Evolución de puntos
+        st.subheader('Evolución de Puntos')
+        points_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].sum().reset_index()
+        fig_points = px.line(points_df, 
+                           x='gameweek', 
+                           y='gameweek_points', 
+                           color='team_name',
+                           title='Puntos por Jornada')
+        st.plotly_chart(fig_points, use_container_width=True)
+        
+        # Posiciones acumuladas
+        st.subheader('Evolución de Posiciones')
+        cumulative_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].sum().groupby(level=0).rank(ascending=False).reset_index()
+        fig_positions = px.line(cumulative_df, 
+                              x='gameweek', 
+                              y='gameweek_points', 
+                              color='team_name',
+                              title='Posiciones por Jornada')
+        fig_positions.update_yaxes(autorange="reversed")
+        st.plotly_chart(fig_positions, use_container_width=True)
+    
+    with tab2:
+        # Análisis de equipos
+        st.subheader('Análisis de Equipos')
+        
+        # Distribución de puntos
+        fig_box = px.box(filtered_df, 
+                        x='team_name', 
+                        y='gameweek_points',
+                        title='Distribución de Puntos por Equipo')
+        st.plotly_chart(fig_box, use_container_width=True)
+        
+        # Transferencias y costos
+        transfers_df = filtered_df.groupby('team_name').agg({
+            'transfers': 'sum',
+            'transfer_cost': 'sum'
+        }).reset_index()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_transfers = px.bar(transfers_df, 
+                                 x='team_name', 
+                                 y='transfers',
+                                 title='Total de Transferencias')
+            st.plotly_chart(fig_transfers, use_container_width=True)
+        
+        with col2:
+            fig_costs = px.bar(transfers_df, 
+                             x='team_name', 
+                             y='transfer_cost',
+                             title='Costo Total de Transferencias')
+            st.plotly_chart(fig_costs, use_container_width=True)
+    
+    with tab3:
+        # Análisis de capitanes
+        st.subheader('Análisis de Capitanes')
+        captains_df = filtered_df[filtered_df['is_captain']].groupby(['player_name', 'player_team']).size().reset_index(name='times_captain')
+        captains_df = captains_df.sort_values('times_captain', ascending=False)
+        
+        fig_captains = px.bar(captains_df.head(10), 
+                            x='player_name', 
+                            y='times_captain',
+                            color='player_team',
+                            title='Jugadores Más Capitaneados')
+        st.plotly_chart(fig_captains, use_container_width=True)
+        
+        # Tabla detallada de capitanes por gameweek
+        st.subheader('Capitanes por Jornada')
+        captain_details = filtered_df[filtered_df['is_captain']].pivot_table(
+            index='gameweek',
+            columns='team_name',
+            values='player_name',
+            aggfunc='first'
+        )
+        st.dataframe(captain_details)
 
-# Filtrar datos
-filtered_df = df_long[
-    (df_long['Gameweek'].isin(all_gameweeks[all_gameweeks.index(gw_start):all_gameweeks.index(gw_end)+1])) & 
-    (df_long['TEAM'].isin(selected_teams))
-].copy()
-
-# Función para estilizar la tabla
-def highlight_wildcards(row):
-    is_wildcard = (wildcards_df['TEAM'] == row['TEAM']) & (wildcards_df['Gameweek'] == row['Gameweek'])
-    styles = ['background-color: lightgreen' if is_wildcard.any() else '' for _ in row]
-    return styles
-
-# Mostrar tabla
-show_single_gw = st.checkbox('Mostrar solo la última jornada seleccionada')
-if show_single_gw:
-    display_df = filtered_df[filtered_df['Gameweek'] == gw_end]
-    st.header(f'Tabla de la Liga - Jornada {gw_end}')
 else:
-    display_df = filtered_df
-    st.header(f'Tabla de la Liga - Jornadas {gw_start} a {gw_end}')
-
-# Ordenar y mostrar la tabla
-st.dataframe(
-    display_df[['TEAM', 'MANAGER', 'Gameweek', 'Corrected_Points', 'Total_Points', 'Position']]
-    .sort_values(['Gameweek', 'Position'])
-    .style.apply(highlight_wildcards, axis=1)
-)
-
-# Evolución de puntos
-st.header('Evolución de Puntos')
-col1, col2 = st.columns([4, 1])
-with col1:
-    fig_points = go.Figure()
-    for team in selected_teams:
-        team_data = filtered_df[filtered_df['TEAM'] == team]
-        fig_points.add_trace(
-            go.Scatter(x=team_data['Gameweek'], 
-                      y=team_data['Corrected_Points'],
-                      name=team)
-        )
-    fig_points.update_layout(
-        title='Puntos por Jornada',
-        xaxis_title='Jornada',
-        yaxis_title='Puntos'
-    )
-    st.plotly_chart(fig_points, use_container_width=True)
-
-with col2:
-    st.write("Opacidad")
-    for team in selected_teams:
-        opacity = st.slider(f'{team}', 0.0, 1.0, 1.0, key=f'points_{team}')
-        fig_points.update_traces(opacity=opacity, selector=dict(name=team))
-
-# Evolución de posiciones
-st.header('Evolución de Posiciones')
-col1, col2 = st.columns([4, 1])
-with col1:
-    fig_position = go.Figure()
-    for team in selected_teams:
-        team_data = filtered_df[filtered_df['TEAM'] == team]
-        fig_position.add_trace(
-            go.Scatter(x=team_data['Gameweek'], 
-                      y=team_data['Position'],
-                      name=team)
-        )
-    fig_position.update_layout(
-        title='Posiciones por Jornada',
-        xaxis_title='Jornada',
-        yaxis_title='Posición',
-        yaxis={'autorange': 'reversed'}
-    )
-    st.plotly_chart(fig_position, use_container_width=True)
-
-with col2:
-    st.write("Opacidad")
-    for team in selected_teams:
-        opacity = st.slider(f'{team}', 0.0, 1.0, 1.0, key=f'pos_{team}')
-        fig_position.update_traces(opacity=opacity, selector=dict(name=team))
-
-# Distribución de puntos por equipo
-st.header('Distribución de Puntos por Equipo')
-fig_box_teams = px.box(
-    filtered_df,
-    x='TEAM',
-    y='Corrected_Points',
-    title='Distribución de Puntos por Equipo'
-)
-fig_box_teams.update_layout(
-    xaxis_title='Equipo',
-    yaxis_title='Puntos'
-)
-st.plotly_chart(fig_box_teams, use_container_width=True)
-
-# Estadísticas de la liga
-st.header('Estadísticas de la Liga')
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("Promedio de la Liga", f"{filtered_df['Corrected_Points'].mean():.1f}")
-
-with col2:
-    max_data = filtered_df.loc[filtered_df['Corrected_Points'].idxmax()]
-    st.metric("Máxima Puntuación", 
-             f"{max_data['Corrected_Points']:.0f} ({max_data['TEAM']}, {max_data['Gameweek']})")
-
-with col3:
-    min_data = filtered_df.loc[filtered_df['Corrected_Points'].idxmin()]
-    st.metric("Mínima Puntuación", 
-             f"{min_data['Corrected_Points']:.0f} ({min_data['TEAM']}, {min_data['Gameweek']})")
+    st.error("No se pudieron cargar los datos. Por favor, intenta más tarde.")
