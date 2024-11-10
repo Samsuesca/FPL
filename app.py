@@ -55,7 +55,7 @@ class FPLData:
 
     def get_league_name(self, league_id):
         """Obtiene nombre de la liga"""
-        self.get_league_info(league_id)
+        league_info = self.get_league_info(league_id)
         return league_info['name']
    
     # Y modifiquemos el process_league_data para incluir más detalles
