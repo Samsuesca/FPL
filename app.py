@@ -217,7 +217,7 @@ if df is not None:
         (df['team_name'].isin(selected_managers))
     ].copy()
 
-    Métricas principales mejoradas
+    #Métricas principales mejoradas
     latest_gw = filtered_df['gameweek'].max()
     current_gw_data = filtered_df[filtered_df['gameweek'] == latest_gw]
 
