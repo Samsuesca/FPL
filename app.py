@@ -230,8 +230,8 @@ if df is not None:
         
         # Transferencias y costos
         transfers_df = filtered_df.groupby('team_name').agg({
-            'transfers': 'max',
-            'transfer_cost': 'max'
+            'transfers': 'sum',
+            'transfer_cost': 'sum'
         }).reset_index()
         
         col1, col2 = st.columns(2)
