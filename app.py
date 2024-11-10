@@ -169,15 +169,27 @@ if df is not None:
     
     with col1:
         st.metric("Promedio de Puntos", f"{filtered_df['gameweek_points'].mean():.1f}")
+        st.divider()  
+        ### promedio de puntos ultimo gameweek
     with col2:
         highest_score = filtered_df.nlargest(1, 'gameweek_points').iloc[0]
-        st.metric("Máxima Puntuación", f"{highest_score['gameweek_points']} ({highest_score['team_name']}, GW{highest_score['gameweek']})")
+        st.metric("Máxima Puntuación", f"{highest_score['gameweek_points']}")
+        st.markdown(f"({highest_score['team_name']}, GW{highest_score['gameweek']})")
+        st.divider()  
+        ### MAXIMA PUTUACION EN ESTE GAMEWEEK
     with col3:
         most_transfers = filtered_df.nlargest(1, 'transfers').iloc[0]
-        st.metric("Más Transferencias", f"{most_transfers['transfers']} ({most_transfers['team_name']}, GW{most_transfers['gameweek']})")
+        st.metric("Más Transferencias", f"{most_transfers['transfers']}")
+        st.markdown(f"({most_transfers['team_name']}, GW{most_transfers['gameweek']})")
+        st.divider()  
+        #### MOST TRANSFERS THIS GAMEWEEK
     with col4:
         highest_cost = filtered_df.nlargest(1, 'transfer_cost').iloc[0]
-        st.metric("Mayor Costo", f"{highest_cost['transfer_cost']} ({highest_cost['team_name']}, GW{highest_cost['gameweek']})")
+        st.metric("Mayor Costo", f"{highest_cost['transfer_cost']}")
+        st.markdown(f"({highest_cost['team_name']}, GW{highest_cost['gameweek']})")
+        st.divider()  
+        ### MAYOR COSTO THIS GAMEWEEK
+        
     
     # Visualizaciones
     tab1, tab2, tab3 = st.tabs(["📈 Rendimiento", "👥 Equipos", "🌟 Capitanes"])
@@ -185,7 +197,7 @@ if df is not None:
     with tab1:
         # Evolución de puntos
         st.subheader('Evolución de Puntos')
-        points_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].sum().reset_index()
+        points_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].mean().reset_index()
         fig_points = px.line(points_df, 
                            x='gameweek', 
                            y='gameweek_points', 
