@@ -14,13 +14,17 @@ class FPLData:
         self.general_data = None
 
     # Primero, añadamos un método para obtener el nombre de la liga
-    def get_league_info(self):
+    def get_league_info(self,league_id):
         """Obtiene información básica de la liga"""
-        url = f"{self.base_url}leagues-classic/{LEAGUE_ID}/"
+        url = f"{self.base_url}leagues-classic/{league_id}/"
         r = self.session.get(url)
         return r.json()
-
-
+        
+    def get_league_name(self, league_id):
+        """Obtiene nombre de la liga"""
+        league_info = self.get_league_info(league_id)
+        return league_info['name']
+        
     def get_general_data(self):
         """Obtiene datos generales de la FPL"""
         if not self.general_data:
@@ -52,11 +56,6 @@ class FPLData:
         url = f"{self.base_url}element-summary/{player_id}/"
         r = self.session.get(url)
         return r.json()
-
-    def get_league_name(self, league_id):
-        """Obtiene nombre de la liga"""
-        league_info = self.get_league_info(league_id)
-        return league_info['name']
    
     # Y modifiquemos el process_league_data para incluir más detalles
     def process_league_data(self, league_id):
