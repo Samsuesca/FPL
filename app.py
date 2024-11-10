@@ -12,7 +12,15 @@ class FPLData:
         self.session = requests.session()
         self.base_url = "https://fantasy.premierleague.com/api/"
         self.general_data = None
-        
+
+    # Primero, añadamos un método para obtener el nombre de la liga
+    def get_league_info(self):
+        """Obtiene información básica de la liga"""
+        url = f"{self.base_url}leagues-classic/{LEAGUE_ID}/"
+        r = self.session.get(url)
+        return r.json()
+
+
     def get_general_data(self):
         """Obtiene datos generales de la FPL"""
         if not self.general_data:
@@ -45,8 +53,9 @@ class FPLData:
         r = self.session.get(url)
         return r.json()
 
+   
+    # Y modifiquemos el process_league_data para incluir más detalles
     def process_league_data(self, league_id):
-        """Procesa todos los datos de la liga"""
         # Obtener datos generales
         general_data = self.get_general_data()
         players_df = pd.DataFrame(general_data['elements'])
@@ -55,13 +64,15 @@ class FPLData:
         
         # Obtener datos de la liga
         league_data = self.get_league_standings(league_id)
+        league_info = self.get_league_info(league_id)
         
         if not league_data or 'standings' not in league_data:
             st.error("No se pudieron obtener los datos de la liga")
             return None
             
-        # Procesar managers
+        # Procesar managers y sus equipos
         managers_data = []
+        managers_summary = []
         current_event = events_df[events_df['is_current']].iloc[0]['id'] if not events_df[events_df['is_current']].empty else events_df['id'].max()
         
         with st.spinner('Cargando datos de los equipos...'):
@@ -73,23 +84,38 @@ class FPLData:
                     # Obtener historial del equipo
                     history = self.get_manager_history(team_id)
                     if history and 'current' in history:
+                        wildcards_used = []
+                        chips_used = history.get('chips', [])
+                        for chip in chips_used:
+                            if chip['name'] == 'wildcard':
+                                wildcards_used.append(chip['event'])
+                        
                         for gw in history['current']:
-                            # Obtener picks para esta gameweek
+                            gw_data = {
+                                'manager_id': team_id,
+                                'manager_name': entry['player_name'],
+                                'team_name': entry['entry_name'],
+                                'gameweek': gw['event'],
+                                'total_points': gw['total_points'],
+                                'gameweek_points': gw['points'],
+                                'transfers': gw['event_transfers'],
+                                'transfer_cost': gw['event_transfers_cost'],
+                                'bank': gw['bank'],
+                                'team_value': gw['value'],
+                                'wildcard_used': gw['event'] in wildcards_used,
+                                'overall_rank': gw['overall_rank'],
+                                'rank': gw['rank']
+                            }
+                            
+                            # Obtener alineación para esta gameweek
                             picks_data = self.get_team_picks(team_id, gw['event'])
                             if picks_data and 'picks' in picks_data:
+                                squad_data = []
                                 for pick in picks_data['picks']:
                                     player_info = players_df[players_df['id'] == pick['element']].iloc[0]
                                     team_info = teams_df[teams_df['id'] == player_info['team']].iloc[0]
                                     
-                                    managers_data.append({
-                                        'manager_id': team_id,
-                                        'manager_name': entry['player_name'],
-                                        'team_name': entry['entry_name'],
-                                        'gameweek': gw['event'],
-                                        'total_points': gw['total_points'],
-                                        'gameweek_points': gw['points'],
-                                        'transfers': gw['event_transfers'],
-                                        'transfer_cost': gw['event_transfers_cost'],
+                                    squad_data.append({
                                         'player_id': pick['element'],
                                         'player_name': f"{player_info['first_name']} {player_info['second_name']}",
                                         'player_team': team_info['name'],
@@ -98,6 +124,10 @@ class FPLData:
                                         'is_vice_captain': pick['is_vice_captain'],
                                         'multiplier': pick['multiplier']
                                     })
+                                
+                                gw_data['squad'] = squad_data
+                            
+                            managers_data.append(gw_data)
                     
                     time.sleep(0.5)  # Respetar rate limits
                     progress_bar.progress((i + 1) / len(league_data['standings']['results']))
@@ -106,7 +136,11 @@ class FPLData:
                     st.warning(f"Error obteniendo datos para el equipo {team_id}: {str(e)}")
                     continue
         
-        return pd.DataFrame(managers_data)
+        df = pd.DataFrame(managers_data)
+        df['season'] = league_info['name']
+        df['league_id'] = league_id
+        
+        return df
 
 # Configuración de la página
 st.set_page_config(page_title="Fantasy Premier League Analytics", layout="wide")
@@ -118,12 +152,6 @@ def get_fpl_data():
 
 fpl = get_fpl_data()
 
-# Título y descripción
-st.title('🏆 Fantasy Premier League Analytics')
-st.markdown("""
-Este dashboard muestra estadísticas detalladas de tu liga de Fantasy Premier League.
-""")
-
 # Cargar datos
 LEAGUE_ID = "1126029"
 
@@ -131,8 +159,25 @@ LEAGUE_ID = "1126029"
 def load_league_data():
     return fpl.process_league_data(LEAGUE_ID)
 
+
+
 # Cargar datos
 df = load_league_data()
+league_name = df['season'].unique()[1]
+
+# En la sección principal
+st.title(f'🏆 {league_name}')
+st.markdown(f"""
+### Liga: {lleague_name }
+Temporada 2023/24 • {len(df['team_name'].unique())} equipos
+""")
+st.markdown(f"""
+Este dashboard muestra estadísticas detalladas de {league_name } de Fantasy Premier League.
+""")
+
+
+
+
 
 if df is not None:
     # Filtros superiores
