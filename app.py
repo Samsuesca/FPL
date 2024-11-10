@@ -137,10 +137,8 @@ class FPLData:
                     continue
         
         df = pd.DataFrame(managers_data)
-        df['season'] = league_info['name']
-        df['league_id'] = league_id
         
-        return df
+        return df, league_info['name']
 
 # Configuración de la página
 st.set_page_config(page_title="Fantasy Premier League Analytics", layout="wide")
@@ -162,10 +160,7 @@ def load_league_data():
 
 
 # Cargar datos
-df = load_league_data()
-st.write(df.columns)
-st.dataframe(df['season'])
-league_name = list(df['season'].unique())[1]
+df, league_name= load_league_data()
 
 # En la sección principal
 st.title(f'🏆 {league_name}')
