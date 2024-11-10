@@ -194,7 +194,7 @@ if df is not None:
     with tab1:
         # Evolución de puntos
         st.subheader('Evolución de Puntos')
-        points_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].mean().reset_index()
+        points_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].max().reset_index()
         fig_points = px.line(points_df, 
                            x='gameweek', 
                            y='gameweek_points', 
@@ -230,8 +230,8 @@ if df is not None:
         
         # Transferencias y costos
         transfers_df = filtered_df.groupby('team_name').agg({
-            'transfers': 'mean',
-            'transfer_cost': 'mean'
+            'transfers': 'max',
+            'transfer_cost': 'max'
         }).reset_index()
         
         col1, col2 = st.columns(2)
