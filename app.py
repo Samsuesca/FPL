@@ -19,10 +19,13 @@ class FPLData:
         url = f"{self.base_url}leagues-classic/{league_id}/"
         r = self.session.get(url)
         return r.json()
+
+    def gln(self,lid):
+        return self.get_league_info(lid)['name']
         
     def get_league_name(self, league_id):
         """Obtiene nombre de la liga"""
-        league_info = self.get_league_info(league_id)
+        league_info = 
         return league_info['name']
         
     def get_general_data(self):
@@ -162,7 +165,7 @@ def load_league_data():
 
 @st.cache_data(ttl=3600)  # Cache por 1 hora
 def load_league_name():
-    return fpl.get_league_name(LEAGUE_ID)
+    return fpl.gln(LEAGUE_ID)
 
 # Cargar datos
 df = load_league_data()
