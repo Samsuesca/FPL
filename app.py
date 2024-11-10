@@ -176,11 +176,11 @@ league_name = "Mulas" #'load_league_name()'
 # En la sección principal
 st.title(f'🏆 {league_name}')
 st.markdown(f"""
-### Liga: {lleague_name }
+### Liga: {league_name }
 Temporada 2023/24 • {len(df['team_name'].unique())} equipos
 """)
 st.markdown(f"""
-Este dashboard muestra estadísticas detalladas de {league_name } de Fantasy Premier League.
+Este dashboard muestra estadísticas detalladas de {league_name} de Fantasy Premier League.
 """)
 
 
