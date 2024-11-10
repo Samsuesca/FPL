@@ -163,6 +163,8 @@ def load_league_data():
 
 # Cargar datos
 df = load_league_data()
+ 
+st.dataframe(df['season'])
 league_name = list(df['season'].unique())[1]
 
 # En la sección principal
