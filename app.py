@@ -53,6 +53,10 @@ class FPLData:
         r = self.session.get(url)
         return r.json()
 
+     def get_league_name(self, league_id):
+        """Obtiene nombre de la liga"""
+        self.get_league_info(league_id)
+        return league_info['name']
    
     # Y modifiquemos el process_league_data para incluir más detalles
     def process_league_data(self, league_id):
@@ -138,7 +142,7 @@ class FPLData:
         
         df = pd.DataFrame(managers_data)
         
-        return (df, league_info['name'])
+        return df
 
 # Configuración de la página
 st.set_page_config(page_title="Fantasy Premier League Analytics", layout="wide")
@@ -155,14 +159,13 @@ LEAGUE_ID = "1126029"
 
 @st.cache_data(ttl=3600)  # Cache por 1 hora
 def load_league_data():
-    data, ln = fpl.process_league_data(LEAGUE_ID)
-    return (data, ln)
+    return fpl.process_league_data(LEAGUE_ID)
 
 
 
 # Cargar datos
-df, league_name = load_league_data()
-
+df = load_league_data()
+league_name = fpl.get_league_name(LEAGUE_ID)
 # En la sección principal
 st.title(f'🏆 {league_name}')
 st.markdown(f"""
