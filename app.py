@@ -202,7 +202,7 @@ if df is not None:
                            title='Puntos por Jornada')
         st.plotly_chart(fig_points, use_container_width=True)
         
-        # Posiciones acumuladas
+        # Posiciones De Cada Gameweek
         st.subheader('Evolución de Posiciones')
         cumulative_df = filtered_df.groupby(['gameweek', 'team_name'])['gameweek_points'].sum().groupby(level=0).rank(ascending=False).reset_index()
         fig_positions = px.line(cumulative_df, 
@@ -212,6 +212,10 @@ if df is not None:
                               title='Posiciones por Jornada')
         fig_positions.update_yaxes(autorange="reversed")
         st.plotly_chart(fig_positions, use_container_width=True)
+
+
+
+        ### Posicion al final del gameweek considerando todos las gameweeks.
     
     with tab2:
         # Análisis de equipos
@@ -226,8 +230,8 @@ if df is not None:
         
         # Transferencias y costos
         transfers_df = filtered_df.groupby('team_name').agg({
-            'transfers': 'sum',
-            'transfer_cost': 'sum'
+            'transfers': 'mean',
+            'transfer_cost': 'mean'
         }).reset_index()
         
         col1, col2 = st.columns(2)
