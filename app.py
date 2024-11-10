@@ -22,12 +22,12 @@ class FPLData:
 
     def gln(self,lid):
         return self.get_league_info(lid)['name']
-        
+    '''
     def get_league_name(self, league_id):
         """Obtiene nombre de la liga"""
         league_info = 
         return league_info['name']
-        
+    '''
     def get_general_data(self):
         """Obtiene datos generales de la FPL"""
         if not self.general_data:
