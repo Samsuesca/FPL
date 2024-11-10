@@ -171,7 +171,7 @@ def load_league_data():
 # Cargar datos
 df = load_league_data()
 
-league_name = load_league_name()
+league_name = "Mulas" #'load_league_name()'
 
 # En la sección principal
 st.title(f'🏆 {league_name}')
@@ -216,6 +216,48 @@ if df is not None:
         (df['gameweek'].between(gw_range[0], gw_range[1])) & 
         (df['team_name'].isin(selected_managers))
     ].copy()
+
+    Métricas principales mejoradas
+    latest_gw = filtered_df['gameweek'].max()
+    current_gw_data = filtered_df[filtered_df['gameweek'] == latest_gw]
+
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        avg_points = current_gw_data['gameweek_points'].mean()
+        avg_points_prev = filtered_df[filtered_df['gameweek'] == latest_gw - 1]['gameweek_points'].mean()
+        st.metric(
+            "Promedio de Puntos GW actual", 
+            f"{avg_points:.1f}", 
+            f"{avg_points - avg_points_prev:+.1f} vs GW anterior"
+        )
+    
+    with col2:
+        highest_score_current = current_gw_data.nlargest(1, 'gameweek_points').iloc[0]
+        st.metric(
+            "Máxima Puntuación GW actual", 
+            f"{highest_score_current['gameweek_points']}", 
+            f"{highest_score_current['team_name']}"
+        )
+    
+    with col3:
+        current_transfers = current_gw_data.groupby('team_name')['transfers'].first()
+        most_transfers_current = current_transfers.nlargest(1)
+        st.metric(
+            "Más Transferencias GW actual", 
+            f"{most_transfers_current.values[0]}", 
+            f"{most_transfers_current.index[0]}"
+        )
+    
+    with col4:
+        current_costs = current_gw_data.groupby('team_name')['transfer_cost'].first()
+        highest_cost_current = current_costs.nlargest(1)
+        st.metric(
+            "Mayor Costo GW actual", 
+            f"{highest_cost_current.values[0]}", 
+            f"{highest_cost_current.index[0]}"
+        )
+
     
     # Métricas principales
     col1, col2, col3, col4 = st.columns(4)
@@ -265,11 +307,32 @@ if df is not None:
                               title='Posiciones por Jornada')
         fig_positions.update_yaxes(autorange="reversed")
         st.plotly_chart(fig_positions, use_container_width=True)
+        
+                # Posiciones acumuladas
+        st.subheader('Evolución de Posiciones Acumuladas')
+        cumulative_points = df.groupby(['gameweek', 'team_name'])['gameweek_points'].first().groupby('team_name').cumsum().reset_index()
+        cumulative_ranks = cumulative_points.groupby('gameweek').rank(ascending=False, method='min')
+        cumulative_df = pd.DataFrame({
+            'gameweek': cumulative_points['gameweek'],
+            'team_name': cumulative_points['team_name'],
+            'position': cumulative_ranks
+        })
+        
+        fig_cumulative = px.line(
+            cumulative_df,
+            x='gameweek',
+            y='position',
+            color='team_name',
+            title='Posiciones Acumuladas por Jornada'
+        )
+        fig_cumulative.update_layout(
+            title_x=0.5,
+            yaxis={'autorange': 'reversed'},
+            xaxis_title='Jornada',
+            yaxis_title='Posición',
+        )
+        st.plotly_chart(fig_cumulative, use_container_width=True)
 
-
-
-        ### Posicion al final del gameweek considerando todos las gameweeks.
-    
     with tab2:
         # Análisis de equipos
         st.subheader('Análisis de Equipos')
@@ -301,6 +364,50 @@ if df is not None:
                              y='transfer_cost',
                              title='Costo Total de Transferencias')
             st.plotly_chart(fig_costs, use_container_width=True)
+
+
+            # Añadir análisis de wildcards
+            st.header('Análisis de Wildcards')
+            wildcards_used = df[df['wildcard_used']].groupby(['team_name', 'gameweek']).size().reset_index()
+            wildcards_used.columns = ['team_name', 'gameweek', 'count']
+            
+            fig_wildcards = px.scatter(
+                wildcards_used,
+                x='gameweek',
+                y='team_name',
+                size='count',
+                title='Uso de Wildcards por Equipo'
+            )
+            fig_wildcards.update_layout(
+                title_x=0.5,
+                xaxis_title='Jornada',
+                yaxis_title='Equipo',
+            )
+            st.plotly_chart(fig_wildcards, use_container_width=True)
+            
+            # Análisis de jugadores
+            st.header('Análisis de Jugadores')
+            player_stats = df.explode('squad').reset_index(drop=True)
+            top_players = player_stats.groupby('player_name').agg({
+                'is_captain': 'sum',
+                'gameweek_points': 'mean',
+                'player_team': 'first'
+            }).sort_values('gameweek_points', ascending=False)
+            
+            fig_players = px.bar(
+                top_players.head(15),
+                x='player_name',
+                y='gameweek_points',
+                color='player_team',
+                title='Top 15 Jugadores por Promedio de Puntos'
+            )
+            fig_players.update_layout(
+                title_x=0.5,
+                xaxis_title='Jugador',
+                yaxis_title='Promedio de Puntos',
+                showlegend=True
+            )
+            st.plotly_chart(fig_players, use_container_width=True)
     
     with tab3:
         # Análisis de capitanes
