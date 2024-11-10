@@ -155,12 +155,13 @@ LEAGUE_ID = "1126029"
 
 @st.cache_data(ttl=3600)  # Cache por 1 hora
 def load_league_data():
-    return fpl.process_league_data(LEAGUE_ID)
+    data, ln = fpl.process_league_data(LEAGUE_ID)
+    return data, ln
 
 
 
 # Cargar datos
-df, league_name= load_league_data()
+df, league_name = load_league_data()
 
 # En la sección principal
 st.title(f'🏆 {league_name}')
