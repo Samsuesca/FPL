@@ -138,7 +138,7 @@ class FPLData:
         
         df = pd.DataFrame(managers_data)
         
-        return df, league_info['name']
+        return (df, league_info['name'])
 
 # Configuración de la página
 st.set_page_config(page_title="Fantasy Premier League Analytics", layout="wide")
@@ -156,7 +156,7 @@ LEAGUE_ID = "1126029"
 @st.cache_data(ttl=3600)  # Cache por 1 hora
 def load_league_data():
     data, ln = fpl.process_league_data(LEAGUE_ID)
-    return data, ln
+    return (data, ln)
 
 
 
